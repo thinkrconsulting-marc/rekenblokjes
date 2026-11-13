@@ -66,6 +66,7 @@
   .dot .n{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:calc(var(--d)*.55)}
   @keyframes pop{to{transform:scale(1)}}
   .op{font-size:64px;font-weight:800;color:var(--muted)}
+  .board:not(.hide) .group.used{opacity:.3}
 
   .sum{font-size:56px;font-weight:800;margin:18px 0 10px;display:flex;gap:14px;align-items:center}
   .sum .x{color:var(--a)} .sum .y{color:var(--b)}
@@ -430,7 +431,7 @@ function dominoes(n, cls){
 }
 
 function drawBoard(){
-  const q=st.q, board=$('board'); board.innerHTML='';
+  const q=st.q, board=$('board'); board.innerHTML=''; st.removed=false; st.subDots=null;
   const w=window.innerWidth, big=(q.a>10||q.b>10); board.style.setProperty('--d', (w>=700?(big?26:34): (big?14:18))+'px');
   animDelay=0;
   board.insertAdjacentHTML('beforeend','<div class="peek"><div class="e">🫣</div>Weet je het nog?</div>');
@@ -442,17 +443,15 @@ function drawBoard(){
     const [g2]=dominoes(q.b,'b');
     board.append(g1,plus,g2);
   } else {
-    const [g,dots]=dominoes(q.a,'a');
-    // de laatste b bolletjes worden een voor een weggenomen
-    for(let k=0;k<q.b;k++){
-      const d=dots[dots.length-1-k];
-      d.dataset.gone='1';
-      setTimeout(()=>{ d.classList.add('gone'); tone(500-k*20,.08,'triangle'); }, 900 + k*350);
-    }
-    board.append(g);
+    // net als bij optellen: twee stenen, het antwoord is niet te zien
+    const [g1,dots]=dominoes(q.a,'a');
+    const minus=document.createElement('div'); minus.className='op'; minus.textContent='−';
+    const [g2]=dominoes(q.b,'b'); g2.classList.add('takeaway');
+    st.subDots=dots;
+    board.append(g1,minus,g2);
   }
   if(q.op==='='){ $('sum').innerHTML=`<span style="font-size:.6em">Hoeveel?</span><span class="q" id="qbox">?</span>`; return; }
-  $('sum').innerHTML = `<span class="x">${q.a}</span><span>${q.op==='+'?'+':'−'}</span><span class="${q.op==='+'?'y':'x'}">${q.b}</span><span>=</span><span class="q" id="qbox">?</span>`;
+  $('sum').innerHTML = `<span class="x">${q.a}</span><span>${q.op==='+'?'+':'−'}</span><span class="y">${q.b}</span><span>=</span><span class="q" id="qbox">?</span>`;
 }
 
 function drawProgress(){
@@ -463,7 +462,7 @@ function nextQ(){
   if(st.round>=ROUNDS) return finish();
   st.q=makeQ(); st.tries=0; st.busy=false;
   drawProgress(); drawBoard();
-  showBoard(); scheduleHide(600 + (st.q.op==='-' ? 900 + st.q.b*350 : 0));
+  showBoard(); scheduleHide(600);
   $('peekBtn').hidden = !hideTime();
   $('msg').textContent='';
   const box=$('answers'); box.innerHTML='';
@@ -485,6 +484,7 @@ function answer(n,btn){
     $('qbox').textContent=n; $('qbox').classList.add('right');
     const praise=['Super!','Knap zo!','Goed zo!','Fantastisch!','Jij bent slim!','Hoera!'][rnd(0,5)];
     $('msg').textContent = praise + (st.tries===0?' ⭐':'');
+    takeAway(120);
     happy(); confetti(); say(q.op==='=' ? `${praise} Het zijn er ${words[q.ans]}.` : `${praise} ${words[q.a]} ${q.op==='+'?'plus':'min'} ${words[q.b]} is ${words[q.ans]}`);
     if(st.tries===0){ st.score++; st.total++; $('starCount').textContent=st.total; try{localStorage.setItem('rb_stars',st.total)}catch(e){} }
     st.round++;
@@ -499,13 +499,30 @@ function answer(n,btn){
 
 /* ---------- samen tellen: blokjes lichten 1 voor 1 op ---------- */
 let counting=false;
+/* aftrekken: pas bij hulp (of na het juiste antwoord) worden de bolletjes weggenomen */
+function takeAway(gap, done){
+  const q=st.q;
+  if(q.op!=='-' || st.removed || !st.subDots){ if(done) done(); return; }
+  st.removed=true;
+  const dots=st.subDots;
+  const g2=document.querySelector('#board .group.takeaway'); if(g2) g2.classList.add('used');
+  for(let k=0;k<q.b;k++){
+    const d=dots[dots.length-1-k]; d.dataset.gone='1';
+    setTimeout(()=>{ if(st.q!==q) return; d.classList.add('gone'); tone(500-k*20,.08,'triangle'); }, k*gap);
+  }
+  setTimeout(()=>{ if(st.q===q && done) done(); }, q.b*gap + 300);
+}
 function countTogether(){
   if(counting) return; counting=true; showBoard();
   const q=st.q;
-  const sqs=[...document.querySelectorAll('#board .dot')].filter(s=> q.op==='+' || !s.dataset.gone);
+  takeAway(350, ()=>countDots(q));
+}
+function countDots(q){
+  const sqs = q.op==='-' ? st.subDots.filter(s=>!s.dataset.gone) : [...document.querySelectorAll('#board .dot')];
   sqs.forEach(s=>{ s.classList.remove('count'); const n=s.querySelector('.n'); if(n) n.remove(); });
   let i=0;
   const step=()=>{
+    if(st.q!==q){ counting=false; return; }
     if(i>=sqs.length){ counting=false; scheduleHide(800); return; }
     const s=sqs[i]; s.classList.add('count');
     const n=document.createElement('span'); n.className='n'; n.textContent=i+1; s.appendChild(n);

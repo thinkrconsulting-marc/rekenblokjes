@@ -1,0 +1,1 @@
+{"name": "Rekenblokjes", "short_name": "Rekenblokjes", "description": "Optellen en aftrekken met kwadraatbeelden", "start_url": "./", "scope": "./", "display": "standalone", "orientation": "any", "background_color": "#fff7e6", "theme_color": "#fff7e6", "lang": "nl", "icons": [{"src": "apple-touch-icon.png", "sizes": "180x180", "type": "image/png"}]}
